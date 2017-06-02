@@ -389,6 +389,24 @@ public class ThreadCacheTest {
     }
 
     @Test
+    public void shouldEvictAfterPutAll() throws Exception {
+        final List<ThreadCache.DirtyEntry> received = new ArrayList<>();
+        final String namespace = "namespace";
+        final ThreadCache cache = new ThreadCache(1);
+        cache.addDirtyEntryFlushListener(namespace, new ThreadCache.DirtyEntryFlushListener() {
+            @Override
+            public void apply(final List<ThreadCache.DirtyEntry> dirty) {
+                received.addAll(dirty);
+            }
+        });
+
+        cache.putAll(namespace, Arrays.asList(KeyValue.pair(new byte[]{0}, dirtyEntry(new byte[]{5})),
+            KeyValue.pair(new byte[]{1}, dirtyEntry(new byte[]{6}))));
+
+        assertEquals(cache.evicts(), 2);
+    }
+
+    @Test
     public void shouldPutAll() throws Exception {
         final ThreadCache cache = new ThreadCache(100000);
 
@@ -420,6 +438,59 @@ public class ThreadCacheTest {
         assertNull(cache.putIfAbsent("n", key, dirtyEntry(value)));
         assertArrayEquals(value, cache.putIfAbsent("n", key, dirtyEntry(new byte[]{8})).value);
         assertArrayEquals(value, cache.get("n", key).value);
+    }
+
+    @Test
+    public void shouldEvictAfterPutIfAbsent() throws Exception {
+        final List<ThreadCache.DirtyEntry> received = new ArrayList<>();
+        final String namespace = "namespace";
+        final ThreadCache cache = new ThreadCache(1);
+        cache.addDirtyEntryFlushListener(namespace, new ThreadCache.DirtyEntryFlushListener() {
+            @Override
+            public void apply(final List<ThreadCache.DirtyEntry> dirty) {
+                received.addAll(dirty);
+            }
+        });
+
+        cache.putIfAbsent(namespace, new byte[]{0}, dirtyEntry(new byte[]{5}));
+        cache.putIfAbsent(namespace, new byte[]{1}, dirtyEntry(new byte[]{6}));
+        cache.putIfAbsent(namespace, new byte[]{1}, dirtyEntry(new byte[]{6}));
+
+        assertEquals(cache.evicts(), 3);
+    }
+
+    @Test
+    public void shouldNotLoopForEverWhenEvictingAndCurrentCacheIsEmpty() throws Exception {
+        final int maxCacheSizeInBytes = 100;
+        final ThreadCache threadCache = new ThreadCache(maxCacheSizeInBytes);
+        // trigger a put into another cache on eviction from "name"
+        threadCache.addDirtyEntryFlushListener("name", new ThreadCache.DirtyEntryFlushListener() {
+            @Override
+            public void apply(final List<ThreadCache.DirtyEntry> dirty) {
+                // put an item into an empty cache when the total cache size
+                // is already > than maxCacheSizeBytes
+                threadCache.put("other", new byte[]{0}, dirtyEntry(new byte[2]));
+            }
+        });
+        threadCache.addDirtyEntryFlushListener("other", new ThreadCache.DirtyEntryFlushListener() {
+            @Override
+            public void apply(final List<ThreadCache.DirtyEntry> dirty) {
+               //
+            }
+        });
+        threadCache.addDirtyEntryFlushListener("another", new ThreadCache.DirtyEntryFlushListener() {
+            @Override
+            public void apply(final List<ThreadCache.DirtyEntry> dirty) {
+
+            }
+        });
+
+        threadCache.put("another", new byte[]{1}, dirtyEntry(new byte[1]));
+        threadCache.put("name", new byte[]{1}, dirtyEntry(new byte[1]));
+        // Put a large item such that when the eldest item is removed
+        // cache sizeInBytes() > maxCacheSizeBytes
+        int remaining = (int) (maxCacheSizeInBytes - threadCache.sizeBytes());
+        threadCache.put("name", new byte[]{2}, dirtyEntry(new byte[remaining + 100]));
     }
 
     private LRUCacheEntry dirtyEntry(final byte[] key) {
