@@ -35,6 +35,7 @@ public class FileStreamSourceConnectorTest {
     private static final String SINGLE_TOPIC = "test";
     private static final String MULTIPLE_TOPICS = "test1,test2";
     private static final String FILENAME = "/somefilename";
+    private static final int BUFFER_SIZE = 4096;
 
     private FileStreamSourceConnector connector;
     private ConnectorContext ctx;
@@ -49,6 +50,7 @@ public class FileStreamSourceConnectorTest {
         sourceProperties = new HashMap<>();
         sourceProperties.put(FileStreamSourceConnector.TOPIC_CONFIG, SINGLE_TOPIC);
         sourceProperties.put(FileStreamSourceConnector.FILE_CONFIG, FILENAME);
+        sourceProperties.put(FileStreamSourceConnector.BUFFER_SIZE, String.valueOf(BUFFER_SIZE));
     }
 
     @Test
@@ -62,6 +64,8 @@ public class FileStreamSourceConnectorTest {
                 taskConfigs.get(0).get(FileStreamSourceConnector.FILE_CONFIG));
         assertEquals(SINGLE_TOPIC,
                 taskConfigs.get(0).get(FileStreamSourceConnector.TOPIC_CONFIG));
+        assertEquals(String.valueOf(BUFFER_SIZE),
+                taskConfigs.get(0).get(FileStreamSourceConnector.BUFFER_SIZE));
 
         // Should be able to return fewer than requested #
         taskConfigs = connector.taskConfigs(2);
@@ -70,6 +74,8 @@ public class FileStreamSourceConnectorTest {
                 taskConfigs.get(0).get(FileStreamSourceConnector.FILE_CONFIG));
         assertEquals(SINGLE_TOPIC,
                 taskConfigs.get(0).get(FileStreamSourceConnector.TOPIC_CONFIG));
+        assertEquals(String.valueOf(BUFFER_SIZE),
+                taskConfigs.get(0).get(FileStreamSourceConnector.BUFFER_SIZE));
 
         PowerMock.verifyAll();
     }

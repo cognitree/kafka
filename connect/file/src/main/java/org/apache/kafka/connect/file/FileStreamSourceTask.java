@@ -17,6 +17,13 @@
 
 package org.apache.kafka.connect.file;
 
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.source.SourceRecord;
+import org.apache.kafka.connect.source.SourceTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -27,13 +34,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.source.SourceRecord;
-import org.apache.kafka.connect.source.SourceTask;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * FileStreamSourceTask reads from stdin or a file.
@@ -47,7 +47,7 @@ public class FileStreamSourceTask extends SourceTask {
     private String filename;
     private InputStream stream;
     private BufferedReader reader = null;
-    private char[] buffer = new char[1024];
+    private char[] buffer = null;
     private int offset = 0;
     private String topic = null;
 
@@ -70,6 +70,8 @@ public class FileStreamSourceTask extends SourceTask {
         topic = props.get(FileStreamSourceConnector.TOPIC_CONFIG);
         if (topic == null)
             throw new ConnectException("FileStreamSourceTask config missing topic setting");
+        final int bufferSize = Integer.parseInt(props.get(FileStreamSourceConnector.BUFFER_SIZE));
+        buffer = new char[bufferSize];
     }
 
     @Override
@@ -125,18 +127,17 @@ public class FileStreamSourceTask extends SourceTask {
             ArrayList<SourceRecord> records = null;
 
             int nread = 0;
-            while (readerCopy.ready()) {
+            if (readerCopy.ready()) {
+                if (offset == buffer.length) {
+                    char[] newbuf = new char[buffer.length * 2];
+                    System.arraycopy(buffer, 0, newbuf, 0, buffer.length);
+                    buffer = newbuf;
+                }
                 nread = readerCopy.read(buffer, offset, buffer.length - offset);
+                offset += nread;
                 log.trace("Read {} bytes from {}", nread, logFilename());
 
                 if (nread > 0) {
-                    offset += nread;
-                    if (offset == buffer.length) {
-                        char[] newbuf = new char[buffer.length * 2];
-                        System.arraycopy(buffer, 0, newbuf, 0, buffer.length);
-                        buffer = newbuf;
-                    }
-
                     String line;
                     do {
                         line = extractLine();
