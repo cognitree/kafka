@@ -37,13 +37,17 @@ import java.util.Map;
 public class FileStreamSourceConnector extends SourceConnector {
     public static final String TOPIC_CONFIG = "topic";
     public static final String FILE_CONFIG = "file";
+    public static final String BUFFER_SIZE = "buffer.size";
+    private static final int DEFAULT_BUFFER_SIZE = 4096;
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
         .define(FILE_CONFIG, Type.STRING, Importance.HIGH, "Source filename.")
-        .define(TOPIC_CONFIG, Type.STRING, Importance.HIGH, "The topic to publish data to");
+        .define(TOPIC_CONFIG, Type.STRING, Importance.HIGH, "The topic to publish data to")
+        .define(BUFFER_SIZE, Type.INT, DEFAULT_BUFFER_SIZE, Importance.HIGH, "The max buffer size to keep in memory");
 
     private String filename;
     private String topic;
+    private String bufferSize;
 
     @Override
     public String version() {
@@ -58,6 +62,9 @@ public class FileStreamSourceConnector extends SourceConnector {
             throw new ConnectException("FileStreamSourceConnector configuration must include 'topic' setting");
         if (topic.contains(","))
             throw new ConnectException("FileStreamSourceConnector should only have a single topic when used as a source.");
+        bufferSize = props.get(BUFFER_SIZE);
+        if(bufferSize == null || bufferSize.isEmpty())
+            bufferSize = String.valueOf(DEFAULT_BUFFER_SIZE);
     }
 
     @Override
@@ -73,6 +80,7 @@ public class FileStreamSourceConnector extends SourceConnector {
         if (filename != null)
             config.put(FILE_CONFIG, filename);
         config.put(TOPIC_CONFIG, topic);
+        config.put(BUFFER_SIZE, bufferSize);
         configs.add(config);
         return configs;
     }
