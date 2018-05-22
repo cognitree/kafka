@@ -47,7 +47,7 @@ public class FileStreamSourceTask extends SourceTask {
     private String filename;
     private InputStream stream;
     private BufferedReader reader = null;
-    private char[] buffer = new char[1024];
+    private char[] buffer = null;
     private int offset = 0;
     private String topic = null;
 
@@ -70,6 +70,8 @@ public class FileStreamSourceTask extends SourceTask {
         topic = props.get(FileStreamSourceConnector.TOPIC_CONFIG);
         if (topic == null)
             throw new ConnectException("FileStreamSourceTask config missing topic setting");
+        final int bufferSize = Integer.parseInt(props.get(FileStreamSourceConnector.BUFFER_SIZE));
+        buffer = new char[bufferSize];
     }
 
     @Override
@@ -125,18 +127,17 @@ public class FileStreamSourceTask extends SourceTask {
             ArrayList<SourceRecord> records = null;
 
             int nread = 0;
-            while (readerCopy.ready()) {
+            if (readerCopy.ready()) {
+                if (offset == buffer.length) {
+                    char[] newbuf = new char[buffer.length * 2];
+                    System.arraycopy(buffer, 0, newbuf, 0, buffer.length);
+                    buffer = newbuf;
+                }
                 nread = readerCopy.read(buffer, offset, buffer.length - offset);
+                offset += nread;
                 log.trace("Read {} bytes from {}", nread, logFilename());
 
                 if (nread > 0) {
-                    offset += nread;
-                    if (offset == buffer.length) {
-                        char[] newbuf = new char[buffer.length * 2];
-                        System.arraycopy(buffer, 0, newbuf, 0, buffer.length);
-                        buffer = newbuf;
-                    }
-
                     String line;
                     do {
                         line = extractLine();

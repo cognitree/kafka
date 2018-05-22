@@ -40,6 +40,7 @@ import static org.junit.Assert.assertEquals;
 public class FileStreamSourceTaskTest {
 
     private static final String TOPIC = "test";
+    private static final int BUFFER_SIZE = 4096;
 
     private File tempFile;
     private Map<String, String> config;
@@ -55,6 +56,7 @@ public class FileStreamSourceTaskTest {
         config = new HashMap<>();
         config.put(FileStreamSourceConnector.FILE_CONFIG, tempFile.getAbsolutePath());
         config.put(FileStreamSourceConnector.TOPIC_CONFIG, TOPIC);
+        config.put(FileStreamSourceConnector.BUFFER_SIZE, String.valueOf(BUFFER_SIZE));
         task = new FileStreamSourceTask();
         offsetStorageReader = PowerMock.createMock(OffsetStorageReader.class);
         context = PowerMock.createMock(SourceTaskContext.class);
